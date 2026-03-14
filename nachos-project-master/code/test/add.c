@@ -15,8 +15,8 @@ int main() {
     for(i=0;i<10;i++){
 	    for(j=0;j<10000;j++){
 	    }
-	    PrintString("In child\n");
+	    PrintString("In child @1\n");
     }
-    Halt();
+    //Halt();
     /* not reached */
 }

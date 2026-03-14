@@ -34,6 +34,8 @@ const int STACK_FENCEPOST = 0xdedbeef;
 //----------------------------------------------------------------------
 
 Thread::Thread(char *threadName, bool _has_dynamic_name /*=false*/) {
+    priority=rand()%10;
+    printf("thread:%s priority:%d\n",threadName,priority);
     has_dynamic_name = _has_dynamic_name;
     name = threadName;
     stackTop = NULL;
@@ -200,9 +202,10 @@ void Thread::Yield() {
 
     DEBUG(dbgThread, "Yielding thread: " << name);
 
-    nextThread = kernel->scheduler->FindNextToRun();
-    if (nextThread != NULL) {
+    nextThread = kernel->scheduler->PeekNextToRun();
+    if (nextThread != NULL && this->priority<nextThread->priority) {
         kernel->scheduler->ReadyToRun(this);
+	nextThread=kernel->scheduler->FindNextToRun();
         kernel->scheduler->Run(nextThread, FALSE);
     }
     (void)kernel->interrupt->SetLevel(oldLevel);
