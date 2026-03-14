@@ -9,9 +9,14 @@
 
 int main() {
     int result;
-
-    result = Add(42, 23);
-    PrintNum(result);
+    int i,j;
+    //result = Add(42, 23);
+    //PrintNum(result);
+    for(i=0;i<10;i++){
+	    for(j=0;j<10000;j++){
+	    }
+	    PrintString("In child\n");
+    }
     Halt();
     /* not reached */
 }
