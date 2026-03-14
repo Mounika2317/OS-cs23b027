@@ -23,6 +23,10 @@ int SysAdd(int op1, int op2) { return op1 + op2; }
 
 int SysAbs(int op1) {if(op1>0) return op1; else return -op1;}
 
+void SysSleep2(int time){
+	int whenToWake = kernel->stats->totalTicks + time;
+	kernel->scheduler->pushIntoBlockedList(kernel->currentThread, whenToWake);
+}
 int SysReadNum() {
     readUntilBlank();
 

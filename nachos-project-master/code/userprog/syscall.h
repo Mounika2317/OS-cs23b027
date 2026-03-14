@@ -52,7 +52,7 @@
 #define SC_Signal 53
 #define SC_GetPid 54
 #define SC_Abs 55
-
+#define SC_Sleep2 56
 
 
 #ifndef IN_ASM
@@ -73,6 +73,7 @@ void Halt();
 /*
  * Add the two operants and return the result
  */
+void Sleep2(int time);
 int Abs(int op1);
 
 int Add(int op1, int op2);

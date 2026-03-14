@@ -17,6 +17,12 @@
 // the data structures and operations needed to keep track of which
 // thread is running, and which threads are ready but not running.
 
+class SleepingThread {
+        public:
+                SleepingThread(Thread* thread, int time);
+                Thread* sleptThread;
+                int whenToWake;
+};
 class Scheduler {
    public:
     Scheduler();   // Initialize list of ready threads
@@ -32,10 +38,14 @@ class Scheduler {
                                 // running needs to be deleted
     void Print();               // Print contents of ready list
     Thread* PeekNextToRun();
+    bool isBlockedListEmpty();
+    void pushIntoBlockedList(Thread* thread, int time);
+    bool checkBlockedList(int currentTime, bool advanceTime);
 
     // SelfTest for scheduler is implemented in class Thread
 
    private:
+    List<SleepingThread*>* blockedList;
     SortedList<Thread*>* readyList;  // queue of threads that are ready to run,
                                // but not running
     Thread* toBeDestroyed;     // finishing thread to be destroyed

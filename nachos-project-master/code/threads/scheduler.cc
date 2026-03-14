@@ -23,6 +23,16 @@
 #include "scheduler.h"
 #include "main.h"
 #include "math.h"
+class WakeUpCallback : public CallBackObj {
+	public:
+		void CallBack() {
+			kernel->scheduler->checkBlockedList(kernel->stats->totalTicks, false);
+		}
+};
+SleepingThread::SleepingThread(Thread* thread, int time){
+	sleptThread = thread;
+	whenToWake = time;
+}
 //----------------------------------------------------------------------
 // Scheduler::Scheduler
 // 	Initialize the list of ready but not running threads.
@@ -33,6 +43,7 @@ int compare(Thread *t1,Thread *t2){
 }
 Scheduler::Scheduler() {
     readyList = new SortedList<Thread *>(compare);
+    blockedList = new List<SleepingThread*>;
     toBeDestroyed = NULL;
 }
 
@@ -59,6 +70,56 @@ void Scheduler::ReadyToRun(Thread *thread) {
     readyList->Insert(thread);
 }
 
+void Scheduler::pushIntoBlockedList(Thread* thread, int time) {
+	if(thread == NULL){
+		cout << "Thread passed for pushing into blockedList is NULL"<<endl;
+		ASSERT(thread != NULL);
+	}
+
+	thread->setStatus(BLOCKED);
+	IntStatus oldLevel = kernel->interrupt->SetLevel(IntOff);
+
+	SleepingThread* goingToSleep = new SleepingThread(thread, time);
+        blockedList->Append(goingToSleep);
+
+	WakeUpCallback* wcb = new WakeUpCallback();
+
+	kernel->interrupt->Schedule(wcb, time, TimerInt);
+	Thread* nextThread;
+	while((nextThread = this->FindNextToRun()) == NULL){
+		//this->checkBlockedList(kernel->stats->totalTicks, true);
+		kernel->interrupt->Idle();
+	}
+	this->Run(nextThread, FALSE);
+//	readyList->Remove(thread);
+	kernel->interrupt->SetLevel(oldLevel);
+}
+bool Scheduler::checkBlockedList(int currentTime, bool advanceTime) {
+
+	if(advanceTime){
+		kernel->stats->totalTicks += 1;
+		//cout<<"Advancing the clock"<<endl;
+	}
+	//cout<<"calling check inside blocked list"<<endl;
+	ListElement<SleepingThread*> *ptr;
+	bool someThreadWoken = false;
+
+	for (ptr = blockedList->first; ptr != NULL; ptr = ptr->next) {
+		//cout<<"";
+		cout<<"Thread to wake up at:"<<ptr->item->whenToWake<<"while current is at:"<<kernel->stats->totalTicks<<endl;
+		volatile int currentTicks = kernel->stats->totalTicks;
+
+		if(ptr->item->whenToWake <= currentTicks) {
+			SleepingThread* toBeWoken = ptr->item;
+			blockedList->Remove(toBeWoken);
+			readyList->Insert(toBeWoken->sleptThread);
+			toBeWoken->sleptThread->setStatus(READY);
+		//	cout << "Woken up a thread with name:" << toBeWoken->sleptThread->getName()<<endl;
+			someThreadWoken = true;
+		}
+	}
+	return someThreadWoken;
+}
 //----------------------------------------------------------------------
 // Scheduler::FindNextToRun
 // 	Return the next thread to be scheduled onto the CPU.

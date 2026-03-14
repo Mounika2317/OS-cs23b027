@@ -168,7 +168,11 @@ void handle_SC_Add() {
     return move_program_counter();
 }
 
-
+void handle_SC_Sleep2() {
+	int timeReq = (int)kernel->machine->ReadRegister(4);
+	SysSleep2(timeReq);
+	return move_program_counter();
+}
 
 
 
@@ -447,6 +451,8 @@ void ExceptionHandler(ExceptionType which) {
                     return handle_SC_Halt();
                 case SC_Add:
                     return handle_SC_Add();
+		case SC_Sleep2:
+		    return handle_SC_Sleep2();
                 case SC_ReadNum:
                     return handle_SC_ReadNum();
                 case SC_PrintNum:
