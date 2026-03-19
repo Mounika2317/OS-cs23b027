@@ -1,27 +1,93 @@
-Nachos-project
-Not Another Completely Heuristic Operating System
+# Nachos Project
 
-This is our course-work for the OS course in HCMUS.
+**Not Another Completely Heuristic Operating System**
 
-Nashos version: 4.0
+This repository contains our coursework for the Operating Systems course.
 
-Installation
-To install: run bash full_install.sh. In case of error, you might want to run the installation step by step via:
+---
 
-# Install building tools like make, g++
+## 📌 Project Details
+
+* **Nachos Version:** 4.0
+* **Course:** Operating Systems
+* **Implementation Includes:**
+
+  * Custom Absolute Function
+  * Priority Scheduler
+  * Sleep System Call (with defined time unit)
+
+---
+
+## ⚙️ Installation & Setup
+
+To set up the project, run the following commands:
+
+### 🔹 Step 1: Install Required Tools
+
+```bash
 bash install_building_tools.sh
+```
 
-# Build the nachos
+### 🔹 Step 2: Build Nachos
+
+```bash
 bash build_nachos.sh
+```
 
-# Build the coff2noff translator
+### 🔹 Step 3: Build COFF to NOFF Translator
+
+```bash
 bash coff2noff.sh
+```
 
-# Build & run tests in code/test folder
+### 🔹 Step 4: Build and Run Test Cases
+
+```bash
 bash build_test.sh
-You can read the full building instruction here if you want to (believe me, you don't want to read it :) ).
+```
 
-CI/CD
-I've set up the GitHub workflow, it will automatically build & test the nachos when you make a commit.
+---
 
-Please make sure that you passed all the workflows before creating a pull request.
+## 🚀 Quick Setup (All-in-One)
+
+You can also run everything at once using:
+
+```bash
+bash full_install.sh
+```
+
+---
+
+## 🧪 Testing
+
+All test cases are located in the `code/test` directory.
+Make sure all implementations work correctly before submission.
+
+---
+
+## 🔄 CI/CD Integration
+
+This repository includes GitHub Actions for automated workflows.
+
+* Automatically builds the project on every commit
+* Runs test cases to ensure correctness
+* Helps maintain code quality
+
+✅ **Important:** Ensure all workflows pass successfully before submission.
+
+---
+
+## 📂 Repository Structure
+
+* `code/` → Core Nachos source code
+* `code/test/` → Test programs
+* Scripts for building and testing
+
+---
+
+## ⚠️ Notes
+
+* Ensure all implementations are complete and tested
+* Mention time unit (ticks/seconds) in sleep syscall test cases
+* Submit diff files along with this repository link
+
