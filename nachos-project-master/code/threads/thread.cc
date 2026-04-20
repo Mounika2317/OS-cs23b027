@@ -33,7 +33,7 @@ const int STACK_FENCEPOST = 0xdedbeef;
 //	"threadName" is an arbitrary string, useful for debugging.
 //----------------------------------------------------------------------
 
-Thread::Thread(char *threadName, bool _has_dynamic_name /*=false*/) {
+Thread::Thread(const char *threadName,int pDes, bool _has_dynamic_name /*=false*/) {
     priority=rand()%10;
     printf("thread:%s priority:%d\n",threadName,priority);
     has_dynamic_name = _has_dynamic_name;
@@ -47,6 +47,11 @@ Thread::Thread(char *threadName, bool _has_dynamic_name /*=false*/) {
                                  // of machine registers
     }
     space = NULL;
+     priority = rand() % 10 + 1;
+     priority = pDes;
+    //cout<<"Created thread:"<<name<<" with priority:"<<priority<<endl;
+    pipeDesNum = pDes;
+    //cout<<"Pipe descriptor of thread:"<<name<<" is :"<<pipeDesNum<<endl;
 }
 
 //----------------------------------------------------------------------

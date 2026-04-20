@@ -52,7 +52,14 @@
 #define SC_Signal 53
 #define SC_GetPid 54
 #define SC_Abs 55
-#define SC_Sleep2 56
+#define SC_ExecPipe 56
+#define SC_Sleep2 57
+#define SC_Pipe 58
+#define SC_PipeRead 59
+#define SC_PipeWrite 60
+#define SC_ExecP 61
+#define SC_ReadInt 62
+#define SC_GetPD 63
 
 
 #ifndef IN_ASM
@@ -70,9 +77,9 @@
 /* Stop Nachos, and print out performance stats */
 void Halt();
 
-/*
- * Add the two operants and return the result
- */
+ 	ASSERT(numRead == numBytes);
+	return numWrite;
+
 void Sleep2(int time);
 int Abs(int op1);
 
@@ -106,7 +113,7 @@ typedef int ThreadId;
 /* Run the specified executable, with no args */
 /* This can be implemented as a call to ExecV.
  */
-SpaceId Exec(char *exec_name);
+SpaceId Exec(char *exec_name , int pDes);
 
 /* Run the executable, stored in the Nachos file "argv[0]", with
  * parameters stored in argv[1..argc-1] and return the
@@ -189,6 +196,16 @@ int CreateSemaphore(char *name, int semval);
 int Wait(char *name);
 
 int Signal(char *name);
+void Sleep2(int time);
+void Pipe(int* x, int* y);	// A system call that requests for two new pipe descriptors - one for parent and one for child
+
+int pipeRead(int des, char* buf, int nBytes);	// A system call that can be used for reading from the buffer associated with a pipe descriptor
+
+int pipeWrite(int des, char* buf, int nBytes); 	// A system call that can be used for writing into the buffer associated with a pipe descriptor
+
+int GetPD();		// A system call that can be used for getting the Pipe Descriptor of the thread
+
+int ReadInt(char* buf);
 
 /* User-level thread operations: Fork and Yield.  To allow multiple
  * threads to run within a user program.

@@ -81,7 +81,7 @@ class Thread {
 
    public:
     int priority;
-    Thread(char *debugName,
+    Thread(const char *debugName, int pDes=0 ,
            bool _has_dynamic_name = false);  // initialize a Thread
     ~Thread();                               // deallocate a Thread
                                              // NOTE -- thread being deleted
@@ -91,6 +91,10 @@ class Thread {
     int processID;
     int parrentID;
     int exitStatus;
+    int pipeDesNum;
+    char* position = "Single";
+    char* fileName_p = "temp";
+    int fileDes;
     void FreeSpace() {
         if (space != 0) delete space;
     }
@@ -108,7 +112,7 @@ class Thread {
 
     void CheckOverflow();  // Check if thread stack has overflowed
     void setStatus(ThreadStatus st) { status = st; }
-    char *getName() { return (name); }
+    const char *getName() { return (name); }
     void Print() { cout << name; }
     void SelfTest();  // test whether thread impl is working
 
@@ -119,7 +123,7 @@ class Thread {
                           // NULL if this is the main thread
                           // (If NULL, don't deallocate stack)
     ThreadStatus status;  // ready, running or blocked
-    char *name;
+    const char *name;
 
     void StackAllocate(VoidFunctionPtr func, void *arg);
     // Allocate a stack for thread.

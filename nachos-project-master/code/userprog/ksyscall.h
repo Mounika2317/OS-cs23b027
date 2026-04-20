@@ -18,10 +18,14 @@
 
 void SysHalt() { kernel->interrupt->Halt(); }
 
-int SysAdd(int op1, int op2) { return op1 + op2; }
+int SysAdd(int op1, int op2) { 
+	return op1 + op2; 
+}
 
-
-int SysAbs(int op1) {if(op1>0) return op1; else return -op1;}
+int SysAbs(int op) { 
+	//cout<<"Got value :"<<op<<" in ksyscall.h"<<endl;
+	return op < 0 ? -op : op; 
+}
 
 void SysSleep2(int time){
 	int whenToWake = kernel->stats->totalTicks + time;
@@ -197,7 +201,7 @@ int SysSeek(int seekPos, int fileId) {
     return kernel->fileSystem->Seek(seekPos, fileId);
 }
 
-int SysExec(char* name) {
+int SysExecP(char* name,  int pDes) {
     // cerr << "call: `" << name  << "`"<< endl;
     OpenFile* oFile = kernel->fileSystem->Open(name);
     if (oFile == NULL) {
@@ -208,7 +212,17 @@ int SysExec(char* name) {
     delete oFile;
 
     // Return child process id
-    return kernel->pTab->ExecUpdate(name);
+    return kernel->pTab->ExecUpdate(name ,pDes);
+}
+
+int SysPipe(int* x, int* y){
+	int result = kernel->pipeDes->createDes(x, y, "pipe");
+	// If the result is -1 then it indicates that the creation of Pipe has been failed.
+	if(result == -1){
+		cout<<"Failed to create Pipe\n";
+		return -1;
+	}
+	return result;
 }
 
 int SysJoin(int id) { return kernel->pTab->JoinUpdate(id); }
@@ -252,6 +266,10 @@ int SysSignal(char* name) {
 }
 
 int SysGetPid() { return kernel->currentThread->processID; }
+
+int SysGetPD() {
+	return kernel->currentThread->pipeDesNum;
+}
 
 #endif /* ! __USERPROG_KSYSCALL_H__ */
 

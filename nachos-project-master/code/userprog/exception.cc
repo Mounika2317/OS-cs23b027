@@ -25,6 +25,8 @@
 #include "main.h"
 #include "syscall.h"
 #include "ksyscall.h"
+
+static int nextTLBSlot = 0;
 //----------------------------------------------------------------------
 // ExceptionHandler
 // 	Entry point into the Nachos kernel.  Called when a user program
@@ -60,7 +62,7 @@
 char* stringUser2System(int addr, int convert_length = -1) {
     int length = 0;
     bool stop = false;
-    char* str;
+  
 
     do {
         int oneChar;
@@ -72,13 +74,14 @@ char* stringUser2System(int addr, int convert_length = -1) {
                 length == convert_length);
     } while (!stop);
 
-    str = new char[length];
+    char* str = new char[length + 1];
     for (int i = 0; i < length; i++) {
         int oneChar;
-        kernel->machine->ReadMem(addr + i, 1,
-                                 &oneChar);  // copy characters to kernel space
-        str[i] = (unsigned char)oneChar;
-    }
+        kernel->machine->ReadMem(addr + i, 1, &oneChar);  // copy characters to kernel space
+        str[i] = (char)oneChar;
+    } 
+    str[length] = '\0';
+
     return str;
 }
 
@@ -150,6 +153,8 @@ void handle_SC_Add() {
     DEBUG(dbgSys, "Add returning with " << result << "\n");
     /* Prepare Result */
     kernel->machine->WriteRegister(2, (int)result);
+    kernel->pipeDes->test_method();
+
 
     return move_program_counter();
 }   
@@ -167,6 +172,77 @@ void handle_SC_Add() {
 
     return move_program_counter();
 }
+
+// Handler for Pipe system call which internally calls for ksyscall.h
+void handle_SC_Pipe() {
+	int firstPtr = kernel->machine->ReadRegister(4);
+        int secondPtr = kernel->machine->ReadRegister(5);
+
+	int* parentPtr = (int*)stringUser2System(firstPtr, 4);
+	int* childPtr = (int*)stringUser2System(secondPtr, 4);
+
+	//*parentPtr = 4;
+	//*childPtr = 5;	// For now assigned randomly
+
+	kernel->machine->WriteRegister(2, SysPipe(parentPtr, childPtr));
+	StringSys2User((char*)parentPtr, firstPtr, 4);
+	StringSys2User((char*)childPtr, secondPtr, 4);
+	return move_program_counter();
+}
+
+// Handler for handling the writing into pipe buffer
+void handle_SC_PipeRead() {
+	int desNum = kernel->machine->ReadRegister(4);
+	int bufAddr = kernel->machine->ReadRegister(5);
+	int nBytes = kernel->machine->ReadRegister(6);
+
+	char* buf = new char[nBytes];
+	int readRes = kernel->pipeDes->readDes(desNum, buf, nBytes);
+	buf[readRes] = '\0';
+/*	int value;
+memcpy(&value, buf, 4);
+cout << "Read int value from pipe: " << value << endl;  // prints 10 ✓
+cout << "Buf value:"<<buf<<endl;*/
+	StringSys2User(buf, bufAddr, nBytes+1);
+	return move_program_counter();
+}
+
+void handle_SC_ReadInt() {
+	int virtAddr;
+	virtAddr = kernel->machine->ReadRegister(4);
+
+	char* buf = stringUser2System(virtAddr);
+        int value;
+	memcpy(&value, buf, 4);
+	//cout<<"Returning int value:"<<value<<endl;
+	kernel->machine->WriteRegister(2, (int) value);
+	return move_program_counter();
+}
+
+
+// Handler for handling the writing into pipe buffer
+void handle_SC_PipeWrite() {
+	int desNum = kernel->machine->ReadRegister(4);
+	int bufAddr = kernel->machine->ReadRegister(5);
+	int nBytes = kernel->machine->ReadRegister(6);
+
+	char* buf = new char[nBytes];
+	for(int i = 0; i < nBytes; i++){
+		int byte;
+		kernel->machine->ReadMem(bufAddr + i, 1, &byte);
+		buf[i] = (char)byte;
+	}
+
+	// Checking if the correct reading is happening
+	int value;
+	memcpy(&value, buf, 4);
+	cout<<"Attempting to write:"<<value<<endl;
+	int writeRes = kernel->pipeDes->writeDes(desNum, buf, nBytes);
+	//StringSys2User(buf, buffAddr, nBytes+1);
+	return move_program_counter();
+
+}
+
 
 void handle_SC_Sleep2() {
 	int timeReq = (int)kernel->machine->ReadRegister(4);
@@ -323,10 +399,9 @@ void handle_SC_Seek() {
  * @return -1 if failed to Exec, otherwise return id of new process
  * (write result to R2)
  */
-void handle_SC_Exec() {
+void handle_SC_ExecP() {
     int virtAddr;
-    virtAddr = kernel->machine->ReadRegister(
-        4);  // doc dia chi ten chuong trinh tu thanh ghi r4
+    virtAddr = kernel->machine->ReadRegister(4);  // doc dia chi ten chuong trinh tu thanh ghi r4
     char* name;
     name = stringUser2System(virtAddr);  // Lay ten chuong trinh, nap vao kernel
     if (name == NULL) {
@@ -335,8 +410,9 @@ void handle_SC_Exec() {
         kernel->machine->WriteRegister(2, -1);
         return move_program_counter();
     }
+    int pDes = kernel->machine->ReadRegister(5);
 
-    kernel->machine->WriteRegister(2, SysExec(name));
+    kernel->machine->WriteRegister(2, SysExecP(name,pDes));
     // DO NOT DELETE NAME, THE THEARD WILL DELETE IT LATER
     // delete[] name;
 
@@ -424,17 +500,100 @@ void handle_SC_GetPid() {
     return move_program_counter();
 }
 
+void handle_SC_GetPD() {
+	kernel->machine->WriteRegister(2, SysGetPD());
+	return move_program_counter();
+}
+static int SelectTLBVictim() {
+    // Prefer an invalid slot first
+    for (int i = 0; i < TLBSize; i++) {
+        if (!kernel->machine->tlb[i].valid) {
+            return i;
+        }
+    }
+    // Round-robin replacement
+    int victim = nextTLBSlot;
+    nextTLBSlot = (nextTLBSlot + 1) % TLBSize;
+    return victim;
+}
+
+static void SaveBackTLBEntry(AddrSpace *space, TranslationEntry &entry) {
+    if (!entry.valid || space == NULL) {
+        return;
+    }
+    TranslationEntry *pte = space->FindPTE(entry.virtualPage);
+    if (pte != NULL) {
+        pte->use   = pte->use   || entry.use;
+        pte->dirty = pte->dirty || entry.dirty;
+    }
+}
+
+static bool HandleTLBMiss() {
+    AddrSpace *space = kernel->currentThread->space;
+    if (space == NULL) {
+        return false;
+    }
+
+    int badVAddr = kernel->machine->ReadRegister(BadVAddrReg);
+    int vpn = badVAddr / PageSize;
+
+    TranslationEntry *pte = space->FindPTE(vpn);
+    if (pte == NULL || !pte->valid) {
+        return false;   // real page fault
+    }
+
+    // TLB miss -> install the entry
+    int victim = SelectTLBVictim();
+    SaveBackTLBEntry(space, kernel->machine->tlb[victim]);
+
+    kernel->machine->tlb[victim] = *pte;
+    kernel->machine->tlb[victim].valid = TRUE;
+
+    return true;   // retry the instruction
+}
+#endif
+
 void ExceptionHandler(ExceptionType which) {
     int type = kernel->machine->ReadRegister(2);
 
     DEBUG(dbgSys, "Received Exception " << which << " type: " << type << "\n");
 
-    switch (which) {
+    switch(which) {
+	    case PageFaultException:
+#ifdef USE_TLB
+        if (HandleTLBMiss()) {
+            return;        // TLB miss handled → retry the user instruction
+        }
+
+        // If we reach here → real page fault (illegal address)
+        cerr << "Page fault at virtual address "
+             << kernel->machine->ReadRegister(BadVAddrReg) << "\n";
+        SysHalt();
+        ASSERTNOTREACHED();
+	switch (which) {
         case NoException:  // return control to kernel
             kernel->interrupt->setStatus(SystemMode);
             DEBUG(dbgSys, "Switch to system mode\n");
             break;
         case PageFaultException:
+	    {
+		int faultingAddr = kernel->machine->ReadRegister(BadVAddrReg);
+ 		cout<<"=== Got a Page fault at the address:"<<faultingAddr<<endl;
+		kernel->currentThread->space->LoadPage(faultingAddr);
+		kernel->currentThread->space->RestoreState();
+		return;
+	    }
+    if (HandleTLBMiss()) {
+        return; // retry instruction
+    }
+	}
+    
+
+    cerr << "Page fault at address "
+         << kernel->machine->ReadRegister(BadVAddrReg) << "\n";
+
+    SysHalt();
+    ASSERTNOTREACHED();
         case ReadOnlyException:
         case BusErrorException:
         case AddressErrorException:
@@ -451,8 +610,16 @@ void ExceptionHandler(ExceptionType which) {
                     return handle_SC_Halt();
                 case SC_Add:
                     return handle_SC_Add();
+		case SC_Pipe:
+		    return handle_SC_Pipe();
+		case SC_PipeRead:
+		    return handle_SC_PipeRead();
+		case SC_PipeWrite:
+		    return handle_SC_PipeWrite();
 		case SC_Sleep2:
 		    return handle_SC_Sleep2();
+		case SC_GetPD:
+		    return handle_SC_GetPD();
                 case SC_ReadNum:
                     return handle_SC_ReadNum();
                 case SC_PrintNum:
@@ -479,8 +646,8 @@ void ExceptionHandler(ExceptionType which) {
                     return handle_SC_Write();
                 case SC_Seek:
                     return handle_SC_Seek();
-                case SC_Exec:
-                    return handle_SC_Exec();
+                case SC_ExecP:
+                    return handle_SC_ExecP();
                 case SC_Join:
                     return handle_SC_Join();
                 case SC_Exit:
@@ -495,6 +662,8 @@ void ExceptionHandler(ExceptionType which) {
                     return handle_SC_GetPid();
 		case SC_Abs:
                     return handle_SC_Abs();
+		case SC_ReadInt:
+		    return handle_SC_ReadInt();
                 /**
                  * Handle all not implemented syscalls
                  * If you want to write a new handler for syscall:
@@ -522,4 +691,4 @@ void ExceptionHandler(ExceptionType which) {
     }
     ASSERTNOTREACHED();
 }
-
+#endif

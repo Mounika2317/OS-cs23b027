@@ -15,6 +15,7 @@
 #include "scheduler.h"
 #include "interrupt.h"
 #include "stats.h"
+#include "pipe.h"
 #include "alarm.h"
 #include "filesys.h"
 #include "machine.h"
@@ -59,6 +60,7 @@ class Kernel {
     SynchConsoleOutput *synchConsoleOut;
     SynchDisk *synchDisk;
     FileSystem *fileSystem;
+    PipeDescriptors* pipeDes;
     PostOfficeInput *postOfficeIn;
     PostOfficeOutput *postOfficeOut;
 

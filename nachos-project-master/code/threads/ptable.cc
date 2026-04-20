@@ -20,7 +20,7 @@ PTable::~PTable() {
     delete bmsem;
 }
 
-int PTable::ExecUpdate(char* name) {
+int PTable::ExecUpdate(char* name ,  int pDes)  {
     // Gọi mutex->P(); để giúp tránh tình trạng nạp 2 tiến trình cùng 1 lúc.
     bmsem->P();
 
@@ -60,7 +60,7 @@ int PTable::ExecUpdate(char* name) {
     pcb[index]->parentID = kernel->currentThread->processID;
 
     // Gọi thực thi phương thức Exec của lớp PCB.
-    int pid = pcb[index]->Exec(name, index);
+    int pid = pcb[index]->Exec(name, index,pDes);
 
     // Gọi bmsem->V()
     bmsem->V();
@@ -68,7 +68,7 @@ int PTable::ExecUpdate(char* name) {
     return pid;
 }
 
-int PTable::ExitUpdate(int exitcode) {
+int PTable::ExitUpdate(int exitcode ) {
     // Nếu tiến trình gọi là main process thì gọi Halt().
     int id = kernel->currentThread->processID;
     if (id == 0) {

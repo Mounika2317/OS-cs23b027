@@ -101,6 +101,7 @@ void Kernel::Initialize(char *userProgName /*=NULL*/) {
     synchDisk = new SynchDisk();                           //
 #ifdef FILESYS_STUB
     fileSystem = new FileSystem();
+    pipeDes = new PipeDescriptors();
 #else
     fileSystem = new FileSystem(formatFlag);
 #endif  // FILESYS_STUB

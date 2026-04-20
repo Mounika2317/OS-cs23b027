@@ -87,7 +87,11 @@ AddrSpace::~AddrSpace() {
     int i;
     for (i = 0; i < numPages; i++) {
         kernel->gPhysPageBitMap->Clear(pageTable[i].physicalPage);
+	if(pageTable[i].valid == TRUE){
+         kernel->gPhysPageBitMap->Clear(pageTable[i].physicalPage);
     }
+  }
+    delete executable;
     delete[] pageTable;
 }
 
@@ -103,6 +107,7 @@ AddrSpace::~AddrSpace() {
 
 AddrSpace::AddrSpace(char *fileName) {
     OpenFile *executable = kernel->fileSystem->Open(fileName);
+    executable = kernel->fileSystem->Open(fileName);
     NoffHeader noffH;
     unsigned int i, size, j, offset;
     unsigned int numCodePage,
@@ -136,19 +141,19 @@ AddrSpace::AddrSpace(char *fileName) {
 
     // Check the available memory enough to load new process
     // debug
-    if (numPages > kernel->gPhysPageBitMap->NumClear()) {
+    /*if (numPages > kernel->gPhysPageBitMap->NumClear()) {
         DEBUG(dbgAddr, "Not enough free space");
         numPages = 0;
         delete executable;
         kernel->addrLock->V();
         return;
-    }
+    }*/
     DEBUG(dbgAddr, "Initializing address space: " << numPages << ", " << size);
     // first, set up the translation
     pageTable = new TranslationEntry[numPages];
     for (i = 0; i < numPages; i++) {
         pageTable[i].virtualPage = i;  // for now, virtual page # = phys page #
-        pageTable[i].physicalPage = kernel->gPhysPageBitMap->FindAndSet();
+        pageTable[i].physicalPage = i;
         // cerr << pageTable[i].physicalPage << endl;
         pageTable[i].valid = TRUE;
         pageTable[i].use = FALSE;
@@ -157,11 +162,7 @@ AddrSpace::AddrSpace(char *fileName) {
         // a separate page, we could set its
         // pages to be read-only
         // xóa các trang này trên memory
-        bzero(&(kernel->machine
-                    ->mainMemory[pageTable[i].physicalPage * PageSize]),
-              PageSize);
-        DEBUG(dbgAddr, "phyPage " << pageTable[i].physicalPage);
-    }
+        bzero(kernel->machine->mainMemory, size);
 
     if (noffH.code.size > 0) {
         for (i = 0; i < numPages; i++)
@@ -181,7 +182,41 @@ AddrSpace::AddrSpace(char *fileName) {
 
     kernel->addrLock->V();
     delete executable;
+    exeFileName = fileName;
+    noffHeader = noffH;
     return;
+}
+
+}
+// Function for loading a page when a page fault occurs
+void AddrSpace::LoadPage(int vaddr) {
+	//OpenFile* executable = executableFile;	// Using the already opened
+						// executable file instead of
+						// opening again
+	int vpn = vaddr / PageSize;	// Computing the virtual page number
+	int codeStart = noffHeader.code.virtualAddr / PageSize;	// Starting page number of the starting point of the code
+	int codeEnd = (noffHeader.code.virtualAddr + noffHeader.code.size - 1) / PageSize;		// Computing the number of the last page code segment
+
+	int dataStart = noffHeader.initData.virtualAddr / PageSize;	// Starting page number of the data segment
+	int dataEnd = (noffHeader.initData.virtualAddr + noffHeader.initData.size - 1) / PageSize;	// Comput the number of the last page of data segment
+	pageTable[vpn].physicalPage = kernel->gPhysPageBitMap->FindAndSet();	// Allocating the bit of the page now when loading the page acutally
+	ASSERT(pageTable[vpn].physicalPage >= 0);	// Check if we actually found a free page
+	bzero(&(kernel->machine->mainMemory[pageTable[vpn].physicalPage * PageSize]), PageSize);	// In case there is any garbage content in the page, clearing it
+	if(vpn >= codeStart && vpn <= codeEnd){
+		cout<<"Loading Code segment:"<<endl;
+		executable->ReadAt(
+				&kernel->machine->mainMemory[(pageTable[vpn].physicalPage * PageSize)],
+				PageSize,
+				noffHeader.code.inFileAddr + ((vpn - codeStart) * PageSize));
+	}
+	else if(vpn >= dataStart && vpn <= dataEnd){
+		cout<<"Loading Data Segment:"<<endl;
+		executable->ReadAt(
+			&kernel->machine->mainMemory[(pageTable[vpn].physicalPage * PageSize)],
+			PageSize,
+			noffHeader.initData.inFileAddr + ((vpn - dataStart) * PageSize));
+	}
+	pageTable[vpn].valid = TRUE;
 }
 
 //----------------------------------------------------------------------
@@ -247,7 +282,11 @@ void AddrSpace::InitRegisters() {
 //	For now, don't need to save anything!
 //----------------------------------------------------------------------
 
-void AddrSpace::SaveState() {}
+void AddrSpace::SaveState() {
+#ifdef USE_TLB
+    SaveTLBState();
+#endif
+}
 
 //----------------------------------------------------------------------
 // AddrSpace::RestoreState
@@ -258,9 +297,17 @@ void AddrSpace::SaveState() {}
 //----------------------------------------------------------------------
 
 void AddrSpace::RestoreState() {
+	
+#ifdef USE_TLB
+    kernel->machine->pageTable = NULL;
+    kernel->machine->pageTableSize = 0;
+    ClearTLB();
+#else
     kernel->machine->pageTable = pageTable;
     kernel->machine->pageTableSize = numPages;
+#endif
 }
+   
 
 //----------------------------------------------------------------------
 // AddrSpace::Translate
@@ -282,6 +329,7 @@ ExceptionType AddrSpace::Translate(unsigned int vaddr, unsigned int *paddr,
     }
 
     pte = &pageTable[vpn];
+
 
     if (isReadWrite && pte->readOnly) {
         return ReadOnlyException;
@@ -308,4 +356,47 @@ ExceptionType AddrSpace::Translate(unsigned int vaddr, unsigned int *paddr,
     //  ", paddr: " << *paddr << "\n";
 
     return NoException;
+
 }
+
+// ================== ADD BELOW ==================
+
+TranslationEntry *AddrSpace::FindPTE(int vpn) {
+    if (vpn < 0 || (unsigned int)vpn >= numPages) {
+        return NULL;
+    }
+    return &pageTable[vpn];
+}
+
+void AddrSpace::SaveTLBState() {
+#ifdef USE_TLB
+    
+
+    for (int i = 0; i < TLBSize; i++) {
+        TranslationEntry &tlbEntry = kernel->machine->tlb[i];
+
+        if (!tlbEntry.valid) {
+		continue;
+	}
+
+        TranslationEntry *pte = FindPTE(tlbEntry.virtualPage);
+
+        if (pte != NULL) {
+            pte->use = pte->use || tlbEntry.use;
+            pte->dirty = pte->dirty || tlbEntry.dirty;
+        }
+    }
+#endif
+}
+
+
+void AddrSpace::ClearTLB() {
+#ifdef USE_TLB
+    for (int i = 0; i < TLBSize; i++) {
+        kernel->machine->tlb[i].valid = FALSE;
+    }
+#endif
+
+}
+
+

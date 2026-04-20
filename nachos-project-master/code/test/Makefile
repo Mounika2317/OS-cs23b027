@@ -112,7 +112,7 @@ ifeq ($(hosttype),unknown)
 PROGRAMS = unknownhost
 else
 # change this if you create a new test program!
-PROGRAMS = abs add add2 sleep  halt shell matmult sort segments test_syscall num_io char_io random str_io ascii bubblesort help create_file open_file readwrite exec test_sem sinhvien voinuoc main
+PROGRAMS = demand_page_test pipe sleep2Test abs add add2 sleep  halt shell matmult sort segments test_syscall num_io char_io random str_io ascii bubblesort help create_file open_file readwrite exec test_sem sinhvien voinuoc main
 endif
 
 all: $(PROGRAMS)
@@ -120,11 +120,32 @@ all: $(PROGRAMS)
 start.o: start.S ../userprog/syscall.h
 	$(CC) $(CFLAGS) $(ASFLAGS) -c start.S
 
+demand_page_test.o: demand_page_test.c
+					
+	$(CC) $(CFLAGS) -c demand_page_test.c
+
+demand_page_test: demand_page_test.o start.o
+ 	$(LD) $(LDFLAGS) start.o demand_page_test.o -o demand_page_test.coff
+	$(COFF2NOFF) demand_page_test.coff demand_page_test
+
 halt.o: halt.c
 	$(CC) $(CFLAGS) -c halt.c
 halt: halt.o start.o
 	$(LD) $(LDFLAGS) start.o halt.o -o halt.coff
 	$(COFF2NOFF) halt.coff halt
+
+pipe.o: pipe.c
+	
+	$(CC) $(CFLAGS) -c pipe.c
+	
+	pipe: pipe.o start.o
+	
+	$(LD) $(LDFLAGS) start.o pipe.o -o pipe.coff
+	
+	$(COFF2NOFF) pipe.coff pipe
+
+Sleep2Test.o: Sleep2Test.c
+ 	$(CC) $(CFLAGS) -c Sleep2Test.c
 
 add.o: add.c
 	$(CC) $(CFLAGS) -c add.c
